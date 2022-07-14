@@ -1,4 +1,3 @@
-from asgi_routing._routing import Router, Route, Mount
-
+from asgi_routing._routing import Mount, Route, Router
 
 __all__ = ["Router", "Route", "Mount"]

@@ -3,7 +3,8 @@ from typing import Awaitable, Dict, Iterable, Tuple
 from urllib.parse import quote
 
 from routrie import Router as RoutrieRouter
-from asgi_routing._types import Scope, ASGIApp, Receive, Send
+
+from asgi_routing._types import ASGIApp, Receive, Scope, Send
 
 
 class Route:
@@ -12,7 +13,9 @@ class Route:
         self.app = app
 
     def __call__(self, scope: Scope, receive: Receive, send: Send) -> Awaitable[None]:
-        scope["path"] = scope["path"].removeprefix(self.match_path.format(**scope["path_params"]))
+        scope["path"] = scope["path"].removeprefix(
+            self.match_path.format(**scope["path_params"])
+        )
         return self.app(scope, receive, send)
 
 
@@ -55,6 +58,7 @@ def build_redirect_app(new_url: str) -> ASGIApp:
             }
         )
         await send({"type": "http.response.body", "body": b"", "more_body": False})
+
     return app
 
 
@@ -88,7 +92,6 @@ def build_redirect_url(scope: Scope, new_path: str) -> str:
     return url
 
 
-
 def convert_path_to_routrie_path(path: str) -> str:
     param_patt = r"([a-zA-Z_][a-zA-Z0-9_]*)"
     path_item_patt = rf"\/{{{param_patt}}}"
@@ -107,6 +110,7 @@ class Router:
 
     To ASGI applications.
     """
+
     def __init__(
         self,
         routes: Iterable[Route],
@@ -120,7 +124,7 @@ class Router:
         )
         self._not_found_handler = not_found_handler
 
-    def __call__(self, scope: Scope, receive: Receive, send: Send) -> Awaitable[None]:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in ("http", "websocket"):
             raise ValueError("Router can only handle http or websocket scopes")
         path: str = scope["path"]
@@ -132,9 +136,12 @@ class Router:
                 else:
                     new_path = path + "/"
                 if self._router.find(new_path):
-                    new_url = quote(str(build_redirect_url(scope, new_path)), safe=":/%#?=@[]!$&'()*+,;")
-                    return build_redirect_app(new_url)(scope, receive, send)
-            return self._not_found_handler(scope, receive, send)
+                    new_url = quote(
+                        str(build_redirect_url(scope, new_path)),
+                        safe=":/%#?=@[]!$&'()*+,;",
+                    )
+                    return await build_redirect_app(new_url)(scope, receive, send)
+            return await self._not_found_handler(scope, receive, send)
         else:
             app, params = match
             path_params: "Dict[str, str]"
@@ -144,4 +151,4 @@ class Router:
                 path_params = {}
             path_params.update(params)
             scope["path_params"] = path_params
-            return app(scope, receive, send)
+            return await app(scope, receive, send)

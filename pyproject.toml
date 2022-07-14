@@ -51,6 +51,7 @@ pytest-sugar = "~0"
 trio = "^0.19.0"
 starlette = "^0.20.4"
 requests = "^2.28.1"
+# benchmarking
 pyright = "^1.1.256"
 ipykernel = "^6.15.1"
 
@@ -63,7 +64,7 @@ profile = "black"
 
 [tool.coverage.run]
 branch = true
-source = ["asgi_lifespan", "tests"]
+source = ["asgi_routing", "tests"]
 dynamic_context = "test_function"
 
 [tool.coverage.report]

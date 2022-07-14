@@ -1,9 +1,9 @@
-from starlette.testclient import TestClient
 from starlette.responses import Response
+from starlette.testclient import TestClient
+from starlette.types import Receive, Scope, Send
 from starlette.websockets import WebSocket
-from starlette.types import Scope, Receive, Send
 
-from asgi_routing._routing import Router, Route, Mount
+from asgi_routing._routing import Mount, Route, Router
 
 
 async def homepage(scope: Scope, receive: Receive, send: Send) -> None:
@@ -60,11 +60,10 @@ app = Router(
                     Route("/{username}/disable", disable_user),
                     Route("/nomatch", user_no_match),
                 ]
-            )
-        )
+            ),
+        ),
     ]
 )
-
 
 
 def test_router() -> None:

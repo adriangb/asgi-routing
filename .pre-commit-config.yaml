@@ -19,23 +19,23 @@ repos:
     - id: isort
       name: isort
       language: system
-      entry: poetry run isort asgi_lifespan tests
+      entry: poetry run isort asgi_routing tests
       types: [python]
       pass_filenames: false
     - id: blacken
       name: blacken
       language: system
-      entry: poetry run black  asgi_lifespan tests
+      entry: poetry run black  asgi_routing tests
       types: [python]
       pass_filenames: false
     - id: flake8
       name: flake8
       language: system
-      entry: poetry run flake8 asgi_lifespan tests
+      entry: poetry run flake8 asgi_routing tests
       types: [python]
     - id: pyright
       name: pyright
       language: system
-      entry: poetry run pyright asgi_lifespan tests
+      entry: poetry run pyright asgi_routing tests
       types: [python]
       pass_filenames: false
