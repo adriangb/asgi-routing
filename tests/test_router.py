@@ -3,7 +3,7 @@ from starlette.testclient import TestClient
 from starlette.types import Receive, Scope, Send
 from starlette.websockets import WebSocket
 
-from asgi_routing._routing import Mount, Route, Router
+from asgi_routing import Mount, Route, Router
 
 
 async def homepage(scope: Scope, receive: Receive, send: Send) -> None:
