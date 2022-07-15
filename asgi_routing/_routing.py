@@ -1,4 +1,5 @@
 import re
+from functools import lru_cache
 from typing import Awaitable, Dict, Iterable, Tuple
 from urllib.parse import quote
 
@@ -8,6 +9,15 @@ from asgi_routing._types import ASGIApp, Receive, Scope, Send
 
 
 class Route:
+    """A generic Route that maps an exact path match to an ASGI app.
+
+    A Route must have:
+    1. A `match_path` attribute that is used by the Router
+    2. A `__call__` method that is an ASGI app
+    """
+
+    __slots__ = ("path", "match_path", "app")
+
     def __init__(self, path: str, app: ASGIApp) -> None:
         self.path = self.match_path = path
         self.app = app
@@ -20,10 +30,11 @@ class Route:
 
 
 class Mount(Route):
-    def __init__(self, path: str, app: ASGIApp) -> None:
-        self.path = path
-        self.match_path = self.path + "{path:path}"
-        self.app = app
+    """A route that matches a path prefix to an ASGI app."""
+
+    def __init__(self, path_prefix: str, app: ASGIApp) -> None:
+        super().__init__(path_prefix, app)
+        self.match_path = path_prefix + "{path:path}"
 
     def __call__(self, scope: Scope, receive: Receive, send: Send) -> Awaitable[None]:
         scope["path"] = scope["path"].removeprefix(self.path)
@@ -34,6 +45,7 @@ class Mount(Route):
 
 
 async def not_found_app(scope: Scope, receive: Receive, send: Send) -> None:
+    """ASGI app that returns a text/plain 404 response"""
     await send(
         {
             "type": "http.response.start",
@@ -50,7 +62,10 @@ async def not_found_app(scope: Scope, receive: Receive, send: Send) -> None:
     )
 
 
+@lru_cache(maxsize=1024)
 def build_redirect_app(new_url: str) -> ASGIApp:
+    """Factory to create an ASGI app that redirects to `new_url`"""
+
     async def app(scope: Scope, receive: Receive, send: Send) -> None:
         await send(
             {
@@ -65,6 +80,11 @@ def build_redirect_app(new_url: str) -> ASGIApp:
 
 
 def build_redirect_url(scope: Scope, new_path: str) -> str:
+    """Build the URL to redirect to from the Scope.
+
+    This functions parses the Scope to extract the scheme, query string
+    and so on and builds a full URL that we can redirect to.
+    """
     scheme = scope.get("scheme", "http")
     server = scope.get("server", None)
     path = scope.get("root_path", "") + new_path
@@ -95,6 +115,21 @@ def build_redirect_url(scope: Scope, new_path: str) -> str:
 
 
 def convert_path_to_routrie_path(path: str) -> str:
+    """Convert path templates using braces (`/users/{username}`)
+    to colons (`/users/:username`).
+
+    Starlette uses braces and braces are nice in Python because they
+    get syntax-highlighted.
+    To keep _some_ backwards compatibility with Starlette and to
+    benefit from syntax highlighting we use braces, but routrie/path-tree
+    use colons for path parameters and asterisks for wildcard parameters,
+    so we need to do some conversion at initialization time.
+    """
+    # TODO: we should check if the template already has some colons or *.
+    # Braces are actually not allowed characters so those are always okay.
+    # But : and * are allowed in URLs so if they exist we should at least error,
+    # but perhaps we could come up with some escaping mechanism
+
     param_patt = r"([a-zA-Z_][a-zA-Z0-9_]*)"
     path_item_patt = rf"{{{param_patt}}}(?:(\/)|$)"
     wildcard_patt = rf"{{{param_patt}:path}}$"
@@ -112,14 +147,19 @@ def convert_path_to_routrie_path(path: str) -> str:
 
 
 class Router:
-    """Simple HTTP Router.
+    """Simple HTTP Router that maps paths to Routes.
 
-    This router maps paths like:
-    - "/{param1}/bar/{param2}
-    - "/bar/{catchall:path}
+    Paths can contain parameter templates as well as wildcards:
+    - "/{param1}/bar/{param2} -> /1/bar/2 (param1 = "1", param2 = "2")
+    - "/bar/{catchall:path} -> /bar/foo/baz (catchall = "foo/baz")
 
-    To ASGI applications.
+    For more details on matching, see the [path-tree] docs,
+    but note that we use braces instead of `":"` and `"*"`.
+
+    [path-tree]: https://github.com/viz-rs/path-tree
     """
+
+    __slots__ = ("redirect_slashes", "_router", "_not_found_handler")
 
     def __init__(
         self,

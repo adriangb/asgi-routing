@@ -54,6 +54,8 @@ requests = "^2.28.1"
 # benchmarking
 pyright = "^1.1.256"
 ipykernel = "^6.15.1"
+# falcon won't support wildcards until v4
+falcon = { git = "https://github.com/falconry/falcon.git", branch = "master"}
 
 [build-system]
 requires = ["poetry-core"]
