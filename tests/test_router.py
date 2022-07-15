@@ -76,10 +76,9 @@ def test_router() -> None:
     assert response.status_code == 404
     assert response.text == "Not Found"
 
-    # # waiting for https://github.com/viz-rs/path-tree/pull/19
-    # response = client.get("/users")
-    # assert response.status_code == 200
-    # assert response.text == "all users"
+    response = client.get("/users")
+    assert response.status_code == 200
+    assert response.text == "all users"
 
     response = client.get("/users/adriangb")
     assert response.status_code == 200

@@ -22,12 +22,14 @@ class Route:
 class Mount(Route):
     def __init__(self, path: str, app: ASGIApp) -> None:
         self.path = path
-        self.match_path = self.path + "/{path:path}"
+        self.match_path = self.path + "{path:path}"
         self.app = app
 
     def __call__(self, scope: Scope, receive: Receive, send: Send) -> Awaitable[None]:
         scope["path"] = scope["path"].removeprefix(self.path)
-        scope["path_params"].pop("path")
+        # the default catches the case where "path" would be empty
+        # but routrie/path-tree returns nothing in these cases
+        scope["path_params"].pop("path", None)
         return self.app(scope, receive, send)
 
 
@@ -94,10 +96,18 @@ def build_redirect_url(scope: Scope, new_path: str) -> str:
 
 def convert_path_to_routrie_path(path: str) -> str:
     param_patt = r"([a-zA-Z_][a-zA-Z0-9_]*)"
-    path_item_patt = rf"\/{{{param_patt}}}"
-    wildcard_patt = rf"\/{{{param_patt}:path}}$"
-    path = re.sub(wildcard_patt, lambda match: f"/*{match.group(1)}", path)
-    path = re.sub(path_item_patt, lambda match: f"/:{match.group(1)}", path)
+    path_item_patt = rf"{{{param_patt}}}(?:(\/)|$)"
+    wildcard_patt = rf"{{{param_patt}:path}}$"
+
+    def wildcard_patt_repl(match: "re.Match[str]") -> str:
+        return f"*{match.group(1)}"
+
+    path = re.sub(wildcard_patt, wildcard_patt_repl, path)
+
+    def path_patt_repl(match: "re.Match[str]") -> str:
+        return f":{match.group(1)}{'/' if match.group(2) else ''}"
+
+    path = re.sub(path_item_patt, path_patt_repl, path)
     return path
 
 
