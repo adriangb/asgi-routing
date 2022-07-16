@@ -56,6 +56,7 @@ ipykernel = "^6.15.1"
 # falcon won't support wildcards until v4
 falcon = { git = "https://github.com/falconry/falcon.git", branch = "master"}
 anyio = "^3.6.1"
+matplotlib = "^3.5.2"
 
 [build-system]
 requires = ["poetry-core"]

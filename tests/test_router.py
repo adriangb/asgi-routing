@@ -9,6 +9,14 @@ from starlette.types import Message, Receive, Scope, Send
 from asgi_routing import Mount, Route, Router
 
 
+def get_client(router: Router) -> TestClient:
+    # Wrap Router into a coroutine to fix TestClient's bad introspection
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
+        await router(scope, receive, send)
+
+    return TestClient(app)
+
+
 async def homepage(scope: Scope, receive: Receive, send: Send) -> None:
     assert scope["method"] == "GET"
     await Response("homepage", media_type="text/plain")(scope, receive, send)
@@ -63,7 +71,7 @@ app = Router(
 
 
 def test_router() -> None:
-    client = TestClient(app)
+    client = get_client(app)
     response = client.get("/")
     assert response.status_code == 200
     assert response.text == "homepage"
@@ -108,7 +116,7 @@ def test_router() -> None:
 def test_redirect_slashes_to_slash(url: str, redirect: str) -> None:
     app = Router([Route("/{username}/", user)])
 
-    client = TestClient(app)
+    client = get_client(app)
 
     resp = client.get(url, allow_redirects=False)
     assert resp.status_code == 307
@@ -129,7 +137,7 @@ def test_redirect_slashes_to_slash(url: str, redirect: str) -> None:
 def test_redirect_slashes_from_slash(url: str, redirect: str) -> None:
     app = Router([Route("/{username}", user)])
 
-    client = TestClient(app)
+    client = get_client(app)
 
     resp = client.get(url, allow_redirects=False)
     assert resp.status_code == 307
@@ -143,7 +151,7 @@ def test_redirect_slashes_from_slash(url: str, redirect: str) -> None:
 def test_redirect_slashes_with_matching_route() -> None:
     app = Router([Route("/{username}", user), Route("/{username}/", homepage)])
 
-    client = TestClient(app)
+    client = get_client(app)
 
     resp = client.get("/adrian/", allow_redirects=False)
     assert resp.status_code == 200
@@ -157,7 +165,7 @@ def test_redirect_slashes_with_matching_route() -> None:
 def test_redirect_slashes_root() -> None:
     app = Router([Route("/home", homepage)])
 
-    client = TestClient(app)
+    client = get_client(app)
 
     resp = client.get("/", allow_redirects=False)
     assert resp.status_code == 404

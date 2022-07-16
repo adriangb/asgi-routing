@@ -28,21 +28,6 @@ class Route:
         return self.app(scope, receive, send)
 
 
-class Mount(Route):
-    """A route that matches a path prefix to an ASGI app."""
-
-    def __init__(self, path_prefix: str, app: ASGIApp) -> None:
-        super().__init__(path_prefix, app)
-        self.match_path = path_prefix + "{path:path}"
-
-    def __call__(self, scope: Scope, receive: Receive, send: Send) -> Awaitable[None]:
-        scope["path"] = scope["path"][len(self.path) :]
-        # the default catches the case where "path" would be empty
-        # but routrie/path-tree returns nothing in these cases
-        scope["path_params"].pop("path", None)
-        return self.app(scope, receive, send)
-
-
 async def not_found_app(scope: Scope, receive: Receive, send: Send) -> None:
     """ASGI app that returns a text/plain 404 response"""
     await send(
@@ -173,7 +158,7 @@ class Router:
         )
         self._not_found_handler = not_found_handler
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+    def __call__(self, scope: Scope, receive: Receive, send: Send) -> Awaitable[None]:
         if scope["type"] not in ("http", "websocket"):  # pragma: no cover
             raise ValueError("Router can only handle http or websocket scopes")
         path: str = scope["path"]
@@ -189,8 +174,8 @@ class Router:
                         build_redirect_url(scope, new_path),
                         safe=":/%#?=@[]!$&'()*+,;",
                     )
-                    return await build_redirect_app(new_url)(scope, receive, send)
-            return await self._not_found_handler(scope, receive, send)
+                    return build_redirect_app(new_url)(scope, receive, send)
+            return self._not_found_handler(scope, receive, send)
         else:
             app, params = match
             path_params: "Dict[str, str]"
@@ -200,4 +185,4 @@ class Router:
                 path_params = {}
             path_params.update(params)
             scope["path_params"] = path_params
-            return await app(scope, receive, send)
+            return app(scope, receive, send)
