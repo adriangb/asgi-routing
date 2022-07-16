@@ -1,7 +1,10 @@
+from typing import Any, List
+
+import pytest
+from starlette.datastructures import Headers
 from starlette.responses import Response
 from starlette.testclient import TestClient
-from starlette.types import Receive, Scope, Send
-from starlette.websockets import WebSocket
+from starlette.types import Message, Receive, Scope, Send
 
 from asgi_routing import Mount, Route, Router
 
@@ -38,13 +41,6 @@ async def user_no_match(scope: Scope, receive: Receive, send: Send) -> None:
     assert scope["method"] == "GET"
     content = "user fixed nomatch"
     await Response(content, media_type="text/plain")(scope, receive, send)
-
-
-async def partial_ws_endpoint(scope: Scope, receive: Receive, send: Send) -> None:
-    websocket = WebSocket(scope, receive, send)
-    await websocket.accept()
-    await websocket.send_json({"url": str(websocket.url)})
-    await websocket.close()
 
 
 app = Router(
@@ -100,3 +96,136 @@ def test_router() -> None:
     response = client.get("/users/nomatch")
     assert response.status_code == 200
     assert response.text == "user fixed nomatch"
+
+
+@pytest.mark.parametrize(
+    "url,redirect",
+    [
+        ("/adrian", "http://testserver/adrian/"),
+        ("/adrian?foo=bar", "http://testserver/adrian/?foo=bar"),
+    ],
+)
+def test_redirect_slashes_to_slash(url: str, redirect: str) -> None:
+    app = Router([Route("/{username}/", user)])
+
+    client = TestClient(app)
+
+    resp = client.get(url, allow_redirects=False)
+    assert resp.status_code == 307
+    assert resp.headers["Location"] == redirect
+
+    resp = client.get("/adrian/", allow_redirects=False)
+    assert resp.status_code == 200
+    assert resp.content == b"user adrian"
+
+
+@pytest.mark.parametrize(
+    "url,redirect",
+    [
+        ("/adrian/", "http://testserver/adrian"),
+        ("/adrian/?foo=bar", "http://testserver/adrian?foo=bar"),
+    ],
+)
+def test_redirect_slashes_from_slash(url: str, redirect: str) -> None:
+    app = Router([Route("/{username}", user)])
+
+    client = TestClient(app)
+
+    resp = client.get(url, allow_redirects=False)
+    assert resp.status_code == 307
+    assert resp.headers["Location"] == redirect
+
+    resp = client.get("/adrian", allow_redirects=False)
+    assert resp.status_code == 200
+    assert resp.content == b"user adrian"
+
+
+def test_redirect_slashes_with_matching_route() -> None:
+    app = Router([Route("/{username}", user), Route("/{username}/", homepage)])
+
+    client = TestClient(app)
+
+    resp = client.get("/adrian/", allow_redirects=False)
+    assert resp.status_code == 200
+    assert resp.content == b"homepage"
+
+    resp = client.get("/adrian", allow_redirects=False)
+    assert resp.status_code == 200
+    assert resp.content == b"user adrian"
+
+
+def test_redirect_slashes_root() -> None:
+    app = Router([Route("/home", homepage)])
+
+    client = TestClient(app)
+
+    resp = client.get("/", allow_redirects=False)
+    assert resp.status_code == 404
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize(
+    "scope,expected_location",
+    [
+        (
+            {"path": "/home/", "query_string": b"abc=123", "headers": []},
+            "/home?abc=123",
+        ),
+        (
+            {
+                "scheme": "https",
+                "server": ("example.com", 123),
+                "path": "/home/",
+                "query_string": b"abc=123",
+                "headers": [],
+            },
+            "https://example.com:123/home?abc=123",
+        ),
+        (
+            {
+                "scheme": "https",
+                "server": ("example.com", 443),
+                "path": "/home/",
+                "query_string": b"abc=123",
+                "headers": [],
+            },
+            "https://example.com/home?abc=123",
+        ),
+        (
+            {
+                "scheme": "https",
+                "path": "/home/",
+                "query_string": b"abc=123",
+                "headers": [(b"Authorization", b"Bearer"), (b"Host", b"example.com")],
+            },
+            "https://example.com/home?abc=123",
+        ),
+    ],
+)
+async def test_redirect_from_scope(
+    scope: Message, expected_location: str, anyio_backend: Any
+):
+    scope.update({"type": "http"})
+
+    app = Router([Route("/home", homepage)])
+
+    async def rcv() -> Message:
+        assert False, "should not be called"  # pragma: no cover
+
+    responses: List[Message] = []
+
+    async def send(message: Message) -> None:
+        if message["type"] == "http.response.start":
+            responses.append(message)
+
+    await app(
+        scope,
+        rcv,
+        send,
+    )
+    resp = responses.pop()
+    assert resp["status"] == 307
+    location = Headers(raw=[(k.lower(), v.lower()) for k, v in resp["headers"]])[
+        "Location"
+    ]
+    assert location == expected_location

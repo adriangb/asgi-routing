@@ -93,8 +93,8 @@ def build_redirect_url(scope: Scope, new_path: str) -> str:
     host_header = None
     headers: "Iterable[Tuple[bytes, bytes]]" = scope["headers"]
     for key, value in headers:
-        if key == b"host":
-            host_header = value.decode("latin-1")
+        if key.decode("latin-1").lower() == "host":
+            host_header = value.decode("latin-1").lower()
             break
 
     if host_header is not None:
@@ -175,7 +175,7 @@ class Router:
         self._not_found_handler = not_found_handler
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] not in ("http", "websocket"):
+        if scope["type"] not in ("http", "websocket"):  # pragma: no cover
             raise ValueError("Router can only handle http or websocket scopes")
         path: str = scope["path"]
         match = self._router.find(path)
@@ -187,7 +187,7 @@ class Router:
                     new_path = path + "/"
                 if self._router.find(new_path):
                     new_url = quote(
-                        str(build_redirect_url(scope, new_path)),
+                        build_redirect_url(scope, new_path),
                         safe=":/%#?=@[]!$&'()*+,;",
                     )
                     return await build_redirect_app(new_url)(scope, receive, send)
