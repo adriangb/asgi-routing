@@ -161,7 +161,7 @@ class Router:
     def __call__(self, scope: Scope, receive: Receive, send: Send) -> Awaitable[None]:
         if scope["type"] not in ("http", "websocket"):  # pragma: no cover
             raise ValueError("Router can only handle http or websocket scopes")
-        path: str = scope["path"]
+        path: "str" = scope["path"]
         match = self._router.find(path)
         if match is None:
             if scope["type"] == "http" and self.redirect_slashes and path != "/":
@@ -178,11 +178,10 @@ class Router:
             return self._not_found_handler(scope, receive, send)
         else:
             app, params = match
-            path_params: "Dict[str, str]"
             if "path_params" in scope:
-                path_params = scope["path_params"]
+                path_params: "Dict[str, str]" = scope["path_params"]
+                path_params.update(params)
             else:
-                path_params = {}
-            path_params.update(params)
+                path_params = dict(params)
             scope["path_params"] = path_params
             return app(scope, receive, send)
