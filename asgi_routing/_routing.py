@@ -23,9 +23,8 @@ class Route:
         self.app = app
 
     def __call__(self, scope: Scope, receive: Receive, send: Send) -> Awaitable[None]:
-        scope["path"] = scope["path"].removeprefix(
-            self.match_path.format(**scope["path_params"])
-        )
+        prefix = self.match_path.format(**scope["path_params"])
+        scope["path"] = scope["path"][len(prefix) :]
         return self.app(scope, receive, send)
 
 
@@ -37,7 +36,7 @@ class Mount(Route):
         self.match_path = path_prefix + "{path:path}"
 
     def __call__(self, scope: Scope, receive: Receive, send: Send) -> Awaitable[None]:
-        scope["path"] = scope["path"].removeprefix(self.path)
+        scope["path"] = scope["path"][len(self.path) :]
         # the default catches the case where "path" would be empty
         # but routrie/path-tree returns nothing in these cases
         scope["path_params"].pop("path", None)
