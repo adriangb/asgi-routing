@@ -1,6 +1,8 @@
-from typing import Any, List
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator, List, Set
 
 import pytest
+from starlette.applications import Starlette
 from starlette.datastructures import Headers
 from starlette.responses import Response
 from starlette.testclient import TestClient
@@ -237,3 +239,52 @@ async def test_redirect_from_scope(
         "Location"
     ]
     assert location == expected_location
+
+
+def test_lifespan() -> None:
+    """Lifespans are propagated to all routes"""
+    lifespans: Set[int] = set()
+
+    @asynccontextmanager
+    async def lifespan_1(*args: Any) -> AsyncIterator[None]:
+        lifespans.add(1)
+        yield
+
+    @asynccontextmanager
+    async def lifespan_2(*args: Any) -> AsyncIterator[None]:
+        lifespans.add(2)
+        yield
+
+    app1 = Starlette(lifespan=lifespan_1)
+    app2 = Starlette(lifespan=lifespan_2)
+
+    app = Router([Route("/1", app1), Route("/2", app2)])
+
+    client = get_client(app)
+
+    with client:
+        pass
+
+    assert lifespans == {1, 2}
+
+
+def test_lifespan_exc() -> None:
+    """Errors in any lifespan propagate up"""
+
+    class MyExc(Exception):
+        pass
+
+    @asynccontextmanager
+    async def lifespan(*args: Any) -> AsyncIterator[None]:
+        raise MyExc
+        yield
+
+    inner = Starlette(lifespan=lifespan)
+
+    app = Router([Route("/", inner)])
+
+    client = get_client(app)
+
+    with pytest.raises(MyExc):
+        with client:
+            pass

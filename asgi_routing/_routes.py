@@ -12,6 +12,8 @@ class Mount(Route):
         self.match_path = path_prefix + "{path:path}"
 
     def __call__(self, scope: Scope, receive: Receive, send: Send) -> Awaitable[None]:
+        if scope["type"] != "http":
+            return self.app(scope, receive, send)
         scope["path"] = scope["path"][len(self.path) :]
         # the default catches the case where "path" would be empty
         # but routrie/path-tree returns nothing in these cases
