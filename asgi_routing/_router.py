@@ -1,27 +1,12 @@
 import re
 from functools import lru_cache
-from typing import Any, AsyncContextManager, Awaitable, Callable, Dict, Iterable, Tuple
+from typing import Any, Awaitable, Dict, Iterable, Tuple
 from urllib.parse import quote
 
 from routrie import Router as RoutrieRouter
 
 from asgi_routing._lifespan_dispatcher import LifespanDispatcher
 from asgi_routing._types import ASGIApp, Receive, Scope, Send
-
-LifespanManager: Callable[[ASGIApp], AsyncContextManager[None]]
-try:
-    from asgi_lifespan import LifespanManager as AsgiLifespanManager
-
-    LifespanManager = AsgiLifespanManager  # type: ignore
-except ImportError:
-
-    def ExcLifespanManager(*args: Any, **kwargs: Any) -> Any:
-        raise ImportError(
-            "Propagating lifespans to routes requires the asgi-lifespan extra or installing asgi-lifespan directly"
-        )
-
-    LifespanManager = ExcLifespanManager
-
 
 class Route:
     """A generic Route that maps an exact path match to an ASGI app.
