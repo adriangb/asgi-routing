@@ -83,7 +83,6 @@ exclude_lines = [
     "__repr__",
     "import",
 ]
-fail_under = 100
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
