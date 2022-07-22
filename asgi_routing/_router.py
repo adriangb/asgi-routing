@@ -1,6 +1,6 @@
 import re
 from functools import lru_cache
-from typing import Any, Awaitable, Dict, Iterable, Tuple
+from typing import Awaitable, Dict, Iterable, Tuple
 from urllib.parse import quote
 
 from routrie import Router as RoutrieRouter
