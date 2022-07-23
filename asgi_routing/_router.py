@@ -8,6 +8,7 @@ from routrie import Router as RoutrieRouter
 from asgi_routing._lifespan_dispatcher import LifespanDispatcher
 from asgi_routing._types import ASGIApp, Receive, Scope, Send
 
+
 class Route:
     """A generic Route that maps an exact path match to an ASGI app.
 
