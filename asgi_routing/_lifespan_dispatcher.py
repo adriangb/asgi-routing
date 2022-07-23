@@ -20,8 +20,6 @@ class LifespanDispatcher:
 
         apps = iter(self.apps)
 
-        scope = {"type": "lifespan"}
-
         startup_completed = False
         excs: List[Tuple[Exception, Optional[str]]] = []
 
