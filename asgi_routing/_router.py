@@ -1,27 +1,12 @@
 import re
-import traceback
-from contextlib import AsyncExitStack
 from functools import lru_cache
-from typing import Any, AsyncContextManager, Awaitable, Callable, Dict, Iterable, Tuple
+from typing import Awaitable, Dict, Iterable, Tuple
 from urllib.parse import quote
 
 from routrie import Router as RoutrieRouter
 
+from asgi_routing._lifespan_dispatcher import LifespanDispatcher
 from asgi_routing._types import ASGIApp, Receive, Scope, Send
-
-LifespanManager: Callable[[ASGIApp], AsyncContextManager[None]]
-try:
-    from asgi_lifespan import LifespanManager as AsgiLifespanManager
-
-    LifespanManager = AsgiLifespanManager  # type: ignore
-except ImportError:
-
-    def ExcLifespanManager(*args: Any, **kwargs: Any) -> Any:
-        raise ImportError(
-            "Propagating lifespans to routes requires the asgi-lifespan extra or installing asgi-lifespan directly"
-        )
-
-    LifespanManager = ExcLifespanManager
 
 
 class Route:
@@ -148,31 +133,6 @@ def convert_path_to_routrie_path(path: str) -> str:
     return path
 
 
-def make_lifespan_app(apps: Iterable[ASGIApp]) -> ASGIApp:
-    async def lifespan(scope: Scope, receive: Receive, send: Send) -> None:
-        assert scope["type"] == "lifespan"
-        started = False
-        await receive()
-        try:
-            async with AsyncExitStack() as stack:
-                for app in apps:
-                    await stack.enter_async_context(LifespanManager(app))
-                await send({"type": "lifespan.startup.complete"})
-                started = True
-                await receive()
-        except BaseException:
-            exc_text = traceback.format_exc()
-            if started:
-                await send({"type": "lifespan.shutdown.failed", "message": exc_text})
-            else:
-                await send({"type": "lifespan.startup.failed", "message": exc_text})
-            raise
-        else:
-            await send({"type": "lifespan.shutdown.complete"})
-
-    return lifespan
-
-
 class Router:
     """Simple HTTP Router that maps paths to Routes.
 
@@ -204,7 +164,7 @@ class Router:
 
     def __call__(self, scope: Scope, receive: Receive, send: Send) -> Awaitable[None]:
         if scope["type"] == "lifespan":
-            return make_lifespan_app(self._apps)(scope, receive, send)
+            return LifespanDispatcher(self._apps)(scope, receive, send)
         if scope["type"] not in ("http", "websocket"):  # pragma: no cover
             raise ValueError("Routing can only handle http or websocket scopes")
         path: "str" = scope["path"]

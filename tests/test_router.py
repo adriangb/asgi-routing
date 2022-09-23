@@ -266,25 +266,3 @@ def test_lifespan() -> None:
         pass
 
     assert lifespans == {1, 2}
-
-
-def test_lifespan_exc() -> None:
-    """Errors in any lifespan propagate up"""
-
-    class MyExc(Exception):
-        pass
-
-    @asynccontextmanager
-    async def lifespan(*args: Any) -> AsyncIterator[None]:
-        raise MyExc
-        yield
-
-    inner = Starlette(lifespan=lifespan)
-
-    app = Router([Route("/", inner)])
-
-    client = get_client(app)
-
-    with pytest.raises(MyExc):
-        with client:
-            pass

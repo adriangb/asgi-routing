@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "asgi-routing"
-version = "0.2.0"
+version = "0.3.0"
 description = "Fast & flexible routing for ASGI web frameworks"
 authors = ["Adrian Garcia Badaracco <adrian@adriangb.com>"]
 readme = "README.md"
@@ -83,7 +83,6 @@ exclude_lines = [
     "__repr__",
     "import",
 ]
-fail_under = 100
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
